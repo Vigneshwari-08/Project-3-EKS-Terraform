@@ -1,0 +1,70 @@
+# ============================================================
+# deployment.yaml — Run app pods on EKS
+# ============================================================
+# Same concept as Project 2 but now running on EKS.
+# Kubernetes will spread the 2 replicas across both worker
+# nodes (one pod per node) automatically.
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-app
+  namespace: default
+  labels:
+    app: devops-app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: devops-app
+
+  # Rolling update strategy — Kubernetes replaces pods one by one.
+  # Zero downtime: the old pod stays up until the new one is healthy.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # Never take a pod down before the new one is ready
+      maxSurge: 1         # Allow 1 extra pod during the update
+
+  template:
+    metadata:
+      labels:
+        app: devops-app
+
+    spec:
+      containers:
+        - name: devops-app
+          # ⚠️  Replace with your DockerHub username
+          image: vigneshwari08/devops-app:latest
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 80
+
+          # Health checks — Kubernetes uses these to know if your pod is healthy.
+          # If livenessProbe fails → restart the pod
+          # If readinessProbe fails → stop sending traffic to this pod
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"

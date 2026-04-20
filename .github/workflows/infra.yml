@@ -1,0 +1,88 @@
+# ============================================================
+# infra.yml — Infrastructure Pipeline (Terraform)
+# ============================================================
+# THIS PIPELINE IS FOR INFRASTRUCTURE ONLY.
+# It does NOT run on every code push.
+#
+# Trigger options:
+#   - Manual: Go to Actions tab → "Infrastructure Pipeline" → Run workflow
+#   - Automatic: Only when files inside terraform/ folder change
+#
+# This is the real-world separation:
+#   infra.yml  → provisions/updates the EKS cluster (runs rarely)
+#   app.yml    → deploys app changes (runs on every code push)
+# ============================================================
+
+name: Infrastructure Pipeline — Terraform EKS
+
+on:
+  # Manual trigger — you click "Run workflow" in GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action to run'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+          - apply
+          - destroy
+
+  # Automatic trigger ONLY when terraform files change
+  # A change to app code will NOT trigger this pipeline
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'   # Only runs if something in terraform/ folder changed
+
+jobs:
+  terraform:
+    name: Terraform ${{ github.event.inputs.action || 'apply' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            us-east-1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan
+        # Plan shows you WHAT will change before it actually changes anything
+
+      - name: Terraform Apply
+        if: github.event.inputs.action != 'destroy'
+        working-directory: terraform
+        run: terraform apply -auto-approve
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        working-directory: terraform
+        run: terraform destroy -auto-approve
+
+      - name: Print kubeconfig command
+        if: github.event.inputs.action != 'destroy'
+        working-directory: terraform
+        run: |
+          echo ""
+          echo "=================================================="
+          echo "  EKS cluster is ready!"
+          echo "  Run this locally to connect kubectl:"
+          echo "  $(terraform output -raw kubeconfig_command)"
+          echo "=================================================="

@@ -1,0 +1,33 @@
+# ============================================================
+# service.yaml — Expose app on EKS
+# ============================================================
+# Using LoadBalancer type here instead of NodePort.
+# On EKS, LoadBalancer automatically provisions an AWS
+# Elastic Load Balancer and gives you a real public URL.
+#
+# This is the production-appropriate approach on EKS —
+# NodePort was fine for k3s on a single EC2, but on a real
+# cluster you use a LoadBalancer.
+# ============================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-app-service
+  namespace: default
+
+spec:
+  type: LoadBalancer   # AWS will create an ELB and assign a public DNS name
+
+  selector:
+    app: devops-app    # Routes to pods with this label
+
+  ports:
+    - protocol: TCP
+      port: 80         # External port users hit
+      targetPort: 80   # Pod port
+
+# After kubectl apply, run:
+#   kubectl get service devops-app-service
+# You'll see an EXTERNAL-IP column — that's your app's public URL.
+# It takes ~2 minutes for AWS to provision the load balancer.
