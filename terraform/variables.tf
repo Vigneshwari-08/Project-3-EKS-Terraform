@@ -20,12 +20,18 @@ variable "kubernetes_version" {
   default     = "1.29"
 }
 
+variable "node_ami_type" {
+  description = "EKS optimized AMI family for managed node groups"
+  type        = string
+  default     = "AL2023_x86_64_STANDARD"
+}
+
 variable "node_instance_type" {
   description = "EC2 instance type for worker nodes"
   type        = string
   # t3.medium = 2 vCPU, 4GB RAM
   # Minimum recommended for EKS — t2.micro is too small
-  default     = "t3.medium"
+  default = "t3.medium"
 }
 
 variable "node_desired_count" {

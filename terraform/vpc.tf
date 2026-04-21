@@ -17,9 +17,9 @@
 # The VPC is your private network on AWS.
 # Everything (EKS cluster, nodes) lives inside this boundary.
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"   # 65,536 IP addresses available
-  enable_dns_support   = true             # Required for EKS
-  enable_dns_hostnames = true             # Required for EKS
+  cidr_block           = "10.0.0.0/16" # 65,536 IP addresses available
+  enable_dns_support   = true          # Required for EKS
+  enable_dns_hostnames = true          # Required for EKS
 
   tags = {
     Name                                        = "devops-project3-vpc"
@@ -30,21 +30,21 @@ resource "aws_vpc" "main" {
 # ── Public Subnet — AZ 1 (us-east-1a) ───────────────────────
 resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"    # 256 IPs for AZ 1
+  cidr_block              = "10.0.1.0/24" # 256 IPs for AZ 1
   availability_zone       = "us-east-1a"
-  map_public_ip_on_launch = true              # Nodes get a public IP automatically
+  map_public_ip_on_launch = true # Nodes get a public IP automatically
 
   tags = {
     Name                                        = "devops-project3-public-1a"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                    = "1"   # Tells EKS this subnet can have load balancers
+    "kubernetes.io/role/elb"                    = "1" # Tells EKS this subnet can have load balancers
   }
 }
 
 # ── Public Subnet — AZ 2 (us-east-1b) ───────────────────────
 resource "aws_subnet" "public_2" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"    # 256 IPs for AZ 2
+  cidr_block              = "10.0.2.0/24" # 256 IPs for AZ 2
   availability_zone       = "us-east-1b"
   map_public_ip_on_launch = true
 
@@ -72,8 +72,8 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block = "0.0.0.0/0"                     # All outbound traffic
-    gateway_id = aws_internet_gateway.main.id     # Goes through the IGW
+    cidr_block = "0.0.0.0/0"                  # All outbound traffic
+    gateway_id = aws_internet_gateway.main.id # Goes through the IGW
   }
 
   tags = {

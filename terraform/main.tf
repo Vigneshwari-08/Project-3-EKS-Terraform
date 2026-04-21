@@ -88,7 +88,7 @@ resource "aws_eks_cluster" "main" {
       aws_subnet.public_1.id,
       aws_subnet.public_2.id
     ]
-    endpoint_public_access = true    # Allows kubectl from your machine / GitHub Actions
+    endpoint_public_access = true # Allows kubectl from your machine / GitHub Actions
   }
 
   # Cluster can only be created after IAM role policies are attached
@@ -110,6 +110,10 @@ resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.cluster_name}-node-group"
   node_role_arn   = aws_iam_role.eks_node_role.arn
+
+  # Make the node image explicit so EKS does not pick an
+  # unsupported default AMI family for this Kubernetes version.
+  ami_type = var.node_ami_type
 
   # Spread nodes across both subnets (both AZs)
   subnet_ids = [
