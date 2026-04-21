@@ -7,6 +7,8 @@ This repository now contains both:
 
 The app pipeline builds the image from this repo, pushes it to Docker Hub, and deploys it to the EKS cluster created by Terraform.
 
+For a step-by-step builder guide with architecture and implementation flow, see [BUILD_REFERENCE.md](/Users/vigneshwarik/Desktop/Project3/BUILD_REFERENCE.md).
+
 ## Project Structure
 
 ```text
