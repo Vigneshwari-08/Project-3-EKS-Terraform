@@ -43,10 +43,36 @@ DevOps-app_Project3/
 |--------|-------|
 | `AWS_ACCESS_KEY_ID` | From AWS IAM |
 | `AWS_SECRET_ACCESS_KEY` | From AWS IAM |
+| `TF_STATE_BUCKET` | S3 bucket name for Terraform remote state |
+| `TF_LOCK_TABLE` | DynamoDB table name for Terraform state locking |
 | `DOCKER_USERNAME` | DockerHub username |
 | `DOCKER_PASSWORD` | DockerHub password/token |
 
-### 2. Update the Docker image name
+### 2. Create Terraform remote state storage
+Create these once in AWS before running the infra workflow:
+
+```bash
+aws s3api create-bucket \
+  --bucket project3-terraform-state-REPLACE_ME \
+  --region us-east-1
+
+aws s3api put-bucket-versioning \
+  --bucket project3-terraform-state-REPLACE_ME \
+  --versioning-configuration Status=Enabled
+
+aws dynamodb create-table \
+  --table-name project3-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+```
+
+Then save these names in GitHub repository secrets:
+- `TF_STATE_BUCKET=project3-terraform-state-REPLACE_ME`
+- `TF_LOCK_TABLE=project3-terraform-locks`
+
+### 3. Update the Docker image name
 In `k8s/deployment.yaml` change:
 ```yaml
 image: vigneshwari08/devops-app:latest
@@ -62,6 +88,7 @@ to your DockerHub username.
 GitHub → Actions tab → "Infrastructure Pipeline" → Run workflow → apply
 ```
 This takes ~12 minutes. EKS clusters are slow to create — this is normal.
+Terraform state is stored remotely in S3, so future apply/destroy runs use the same state.
 
 ### Step 2 — Connect kubectl locally (optional, for verification)
 ```bash
