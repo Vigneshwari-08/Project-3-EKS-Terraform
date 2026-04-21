@@ -21,6 +21,7 @@ on:
     paths-ignore:
       - 'terraform/**'   # Ignore infra changes — that's infra.yml's job
       - 'README.md'
+      - 'BUILD_REFERENCE.md'
 
 jobs:
 
