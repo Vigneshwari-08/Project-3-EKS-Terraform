@@ -121,7 +121,8 @@ resource "aws_eks_node_group" "main" {
     aws_subnet.public_2.id
   ]
 
-  # Node size — t3.medium is the minimum recommended for EKS
+  # Node size comes from variables.tf.
+  # Default is t3.small to stay Free Tier eligible.
   instance_types = [var.node_instance_type]
 
   # Scaling config:

@@ -29,9 +29,9 @@ variable "node_ami_type" {
 variable "node_instance_type" {
   description = "EC2 instance type for worker nodes"
   type        = string
-  # t3.medium = 2 vCPU, 4GB RAM
-  # Minimum recommended for EKS — t2.micro is too small
-  default = "t3.medium"
+  # Use a Free Tier eligible size by default so CI can create
+  # the managed node group in accounts restricted to Free Tier.
+  default = "t3.small"
 }
 
 variable "node_desired_count" {
