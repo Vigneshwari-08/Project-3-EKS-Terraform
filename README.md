@@ -1,55 +1,90 @@
-# 🚀 DevOps Project 3 — EKS + Terraform + Split CI/CD Pipelines
+# DevOps Project 3 - EKS + Terraform + App CI/CD
 
----
+This repository now contains both:
 
-## 📁 Structure
+- the infrastructure for AWS EKS
+- the application files that are built into the Docker image and deployed to EKS
 
-```
-DevOps-app_Project3/
+The app pipeline builds the image from this repo, pushes it to Docker Hub, and deploys it to the EKS cluster created by Terraform.
+
+## Project Structure
+
+```text
+Project3/
 ├── .github/workflows/
-│   ├── infra.yml        ← Terraform pipeline (manual / infra changes only)
-│   └── app.yml          ← App pipeline (every code push)
+│   ├── infra.yml        # Terraform pipeline for EKS infrastructure
+│   └── app.yml          # App build + deploy pipeline
+├── app/
+│   ├── index.html       # Static app entry page
+│   ├── script.js        # Frontend behavior
+│   └── style.css        # App styling
 ├── terraform/
-│   ├── main.tf          ← EKS cluster + node group + IAM roles
-│   ├── vpc.tf           ← VPC, subnets, internet gateway, routing
-│   ├── variables.tf     ← All config values
-│   └── outputs.tf       ← Cluster name, endpoint, kubeconfig command
+│   ├── backend.tf       # Remote state backend config
+│   ├── main.tf          # EKS cluster, node group, IAM roles
+│   ├── outputs.tf       # Useful Terraform outputs
+│   ├── variables.tf     # Configurable values
+│   └── vpc.tf           # VPC, subnets, internet gateway, routing
 ├── k8s/
-│   ├── deployment.yaml  ← 2 replicas, rolling update, health checks
-│   └── service.yaml     ← LoadBalancer → AWS ELB → public URL
+│   ├── deployment.yaml  # Kubernetes deployment
+│   └── service.yaml     # Kubernetes LoadBalancer service
+├── Dockerfile           # Builds the Nginx-based app image
+├── nginx.conf           # Nginx config used inside the container
 └── README.md
 ```
 
----
+## How This Repo Works
 
-## ⚡ Key difference from Project 2
+### Infrastructure pipeline
 
-| | Project 2 | Project 3 |
+`infra.yml` is responsible for:
+
+- creating the VPC and networking
+- creating the EKS cluster
+- creating the managed node group
+- storing Terraform state in S3 with DynamoDB locking
+
+Run this workflow manually when you want to apply or destroy infrastructure.
+
+### Application pipeline
+
+`app.yml` is responsible for:
+
+- building the Docker image from this repository
+- pushing the image to Docker Hub
+- connecting to the existing EKS cluster
+- applying the Kubernetes manifests in `k8s/`
+- updating the deployment image to the latest commit SHA
+
+This means the app source files, `Dockerfile`, and `nginx.conf` must live in this repo for the current workflow to work correctly.
+
+## Key Difference From Project 2
+
+| Area | Project 2 | Project 3 |
 |---|---|---|
-| Kubernetes | k3s on single EC2 | AWS EKS (managed, multi-AZ) |
-| Infra pipeline | Every git push | Manual or terraform/ changes only |
-| App pipeline | Mixed with infra | Separate — no Terraform involved |
-| Service type | NodePort | LoadBalancer (real AWS ELB) |
-| Health checks | None | livenessProbe + readinessProbe |
-| Image tagging | latest only | latest + git SHA (rollback-ready) |
+| Kubernetes | k3s on one EC2 | AWS EKS managed cluster |
+| Infra | Single VM style setup | Terraform-managed AWS infra |
+| App deployment | Simpler local/server deployment | GitHub Actions to EKS |
+| Service exposure | NodePort/basic access | AWS LoadBalancer |
+| Image rollout | Basic image update | `latest` plus commit SHA |
 
----
+## One-Time Setup
 
-## 🛠️ One-time setup
+### 1. GitHub secrets
 
-### 1. GitHub Secrets needed
+Add these repository secrets:
 
 | Secret | Value |
-|--------|-------|
-| `AWS_ACCESS_KEY_ID` | From AWS IAM |
-| `AWS_SECRET_ACCESS_KEY` | From AWS IAM |
-| `TF_STATE_BUCKET` | S3 bucket name for Terraform remote state |
-| `TF_LOCK_TABLE` | DynamoDB table name for Terraform state locking |
-| `DOCKER_USERNAME` | DockerHub username |
-| `DOCKER_PASSWORD` | DockerHub password/token |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | IAM access key |
+| `AWS_SECRET_ACCESS_KEY` | IAM secret key |
+| `TF_STATE_BUCKET` | S3 bucket for Terraform state |
+| `TF_LOCK_TABLE` | DynamoDB table for Terraform locking |
+| `DOCKER_USERNAME` | Docker Hub username |
+| `DOCKER_PASSWORD` | Docker Hub password or access token |
 
-### 2. Create Terraform remote state storage
-Create these once in AWS before running the infra workflow:
+### 2. Create Terraform remote state resources
+
+Create these once before running the infrastructure workflow:
 
 ```bash
 aws s3api create-bucket \
@@ -68,58 +103,99 @@ aws dynamodb create-table \
   --region us-east-1
 ```
 
-Then save these names in GitHub repository secrets:
+Then save those names in GitHub secrets:
+
 - `TF_STATE_BUCKET=project3-terraform-state-REPLACE_ME`
 - `TF_LOCK_TABLE=project3-terraform-locks`
 
-### 3. Update the Docker image name
-In `k8s/deployment.yaml` change:
+### 3. Update the Docker image reference
+
+In [k8s/deployment.yaml](/Users/vigneshwarik/Desktop/Project3/k8s/deployment.yaml:36), set the image to your Docker Hub username if needed:
+
 ```yaml
-image: vigneshwari08/devops-app:latest
+image: your-dockerhub-username/devops-app:latest
 ```
-to your DockerHub username.
 
----
+The GitHub Actions deploy step also updates the image to:
 
-## 🚀 How to run
-
-### Step 1 — Provision the EKS cluster (run once)
+```text
+<DOCKER_USERNAME>/devops-app:<git-sha>
 ```
-GitHub → Actions tab → "Infrastructure Pipeline" → Run workflow → apply
-```
-This takes ~12 minutes. EKS clusters are slow to create — this is normal.
-Terraform state is stored remotely in S3, so future apply/destroy runs use the same state.
 
-### Step 2 — Connect kubectl locally (optional, for verification)
+So the Kubernetes image name and your Docker Hub secrets should match.
+
+## Run Order
+
+### Step 1. Provision infrastructure
+
+From GitHub Actions:
+
+```text
+Actions -> Infrastructure Pipeline -> Run workflow -> apply
+```
+
+This creates the EKS cluster and node group. EKS creation usually takes several minutes.
+
+Note: the node group default is set to `t3.micro` to stay Free Tier eligible for EC2, but EKS control plane charges still apply.
+
+### Step 2. Verify cluster access locally
+
 ```bash
 aws eks update-kubeconfig --region us-east-1 --name devops-project3
-kubectl get nodes   # Should show 2 nodes in Ready state
+kubectl get nodes
 ```
 
-### Step 3 — Deploy the app (happens automatically on every push)
+You should see the worker nodes in `Ready` state.
+
+### Step 3. Deploy the application
+
+Push to `main`:
+
 ```bash
 git push origin main
-# app.yml triggers automatically
-# builds image → deploys to EKS → rollout completes
 ```
 
-### Step 4 — Get the app URL
+The app pipeline will:
+
+- build the image from `Dockerfile`
+- copy the contents of `app/` into the container
+- use `nginx.conf` inside the image
+- push the image to Docker Hub
+- deploy the manifests in `k8s/`
+
+### Step 4. Get the public URL
+
 ```bash
 kubectl get service devops-app-service
-# Look at EXTERNAL-IP column — that's your public AWS load balancer URL
-# Takes ~2 minutes to appear after first deploy
 ```
 
----
+Check the `EXTERNAL-IP` or hostname shown by the AWS LoadBalancer.
 
-## 🧹 Teardown (stop AWS charges)
+## Local File Roles
+
+- `Dockerfile` uses `nginx:latest`
+- `app/` is copied into `/usr/share/nginx/html`
+- `nginx.conf` replaces the default Nginx configuration
+- `k8s/deployment.yaml` runs 2 replicas of the container
+- `k8s/service.yaml` exposes the app using a LoadBalancer
+
+## Teardown
+
+To stop AWS resources:
+
+```text
+Actions -> Infrastructure Pipeline -> Run workflow -> destroy
 ```
-GitHub → Actions tab → "Infrastructure Pipeline" → Run workflow → destroy
-```
-This deletes the EKS cluster, nodes, VPC, and everything Terraform created.
 
----
+This removes the EKS cluster, node group, VPC, and other Terraform-managed AWS resources.
 
-## 🔜 Next steps (Step 2 of Project 3)
-- Package the app as a **Helm chart** (replace raw kubectl apply)
-- Add **Prometheus + Grafana** via kube-prometheus-stack Helm chart
+## Important Notes
+
+- This repo is now a combined infra + app repo.
+- The application pipeline assumes the app files are inside this same repository.
+- If you later move the app back to another repo, `app.yml` will need to be changed to check out that repo or the pipeline should live there instead.
+
+## Next Steps
+
+- Package the Kubernetes app deployment as a Helm chart.
+- Add monitoring with Prometheus and Grafana.
